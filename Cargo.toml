@@ -14,4 +14,5 @@ homepage = "https://github.com/zjjw/rust-8008"
 [dependencies]
 dsp-chain = "0.12.0"
 mindtree_utils = "0.3.0"
+rand = "0.3.14"
 portaudio = "0.6.3"

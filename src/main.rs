@@ -3,11 +3,13 @@
 
 extern crate dsp;
 extern crate portaudio;
+extern crate rand;
 extern crate utils;
+mod waveforms;
 
 use dsp::{sample, Graph, Node, FromSample, Sample, Settings, Walker};
 use portaudio as pa;
-
+use waveforms::Waveform;
 
 /// SoundStream is currently generic over i8, i32 and f32. Feel free to change it!
 type Output = f32;
@@ -68,13 +70,13 @@ fn run() -> Result<(), pa::Error> {
         prev_time = Some(time.current);
 
         // Traverse inputs or outputs of a node with the following pattern.
-        let mut inputs = graph.inputs(synth);
-        while let Some(input_idx) = inputs.next_node(&graph) {
-            if let DspNode::Oscillator(_, ref mut pitch, _) = graph[input_idx] {
-                // Pitch down our oscillators for fun.
-                *pitch -= 0.1;
-            }
-        }
+        // let mut inputs = graph.inputs(synth);
+        // while let Some(input_idx) = inputs.next_node(&graph) {
+        //     if let DspNode::Oscillator(_, ref mut pitch, _) = graph[input_idx] {
+        //         // Pitch down our oscillators for fun.
+        //         *pitch += 0.1;
+        //     }
+        // }
 
         if timer >= 0.0 { pa::Continue } else { pa::Complete }
     };
@@ -110,7 +112,7 @@ impl Node<Output> for DspNode {
             DspNode::Synth => (),
             DspNode::Oscillator(ref mut phase, frequency, volume) => {
                 for frame in buffer.chunks_mut(settings.channels as usize) {
-                    let val = sine_wave(*phase, volume);
+                    let val = waveforms::Saw.amp_at_phase(*phase);
                     for channel in frame.iter_mut() {
                         *channel = val;
                     }
@@ -119,12 +121,4 @@ impl Node<Output> for DspNode {
             },
         }
     }
-}
-
-/// Return a sawish wave for the given phase.
-fn sine_wave<S: Sample>(phase: Phase, volume: Volume) -> S
-    where S: Sample + FromSample<f32>,
-{
-    use std::f64::consts::PI;
-    ((::utils::fmod(phase, 1.0) * -2.0 + 1.0) as f32 * volume).to_sample::<S>()
 }
