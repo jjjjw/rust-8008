@@ -18,24 +18,6 @@ const PI_2: f64 = ::std::f64::consts::PI * 2.0;
 /// Represents the "steepness" of the exponential saw wave.
 pub type Steepness = f32;
 
-/// An Oscillator must use one of a variety
-/// of waveform types.
-#[derive(Copy, Clone, Debug, PartialEq)]
-pub enum Dynamic {
-    /// Sine Wave
-    Sine,
-    /// Saw Wave
-    Saw,
-    /// Square Wave
-    Square,
-    /// Noise
-    Noise,
-    /// Noise Walk
-    // NoiseWalk,
-    /// Exponential Saw Wave.
-    SawExp(Steepness),
-}
-
 /// A sine wave.
 #[derive(Copy, Clone, Debug)]
 pub struct Sine;
@@ -56,25 +38,6 @@ pub struct Square;
 #[derive(Copy, Clone, Debug)]
 pub struct Noise;
 
-/// A random noise walk wave.
-// #[derive(Copy, Clone, Debug)]
-// pub struct NoiseWalk;
-
-
-impl Waveform for Dynamic {
-    /// Return the amplitude of a waveform at a given phase.
-    #[inline]
-    fn amp_at_phase(&self, phase: f64) -> f32 {
-        match *self {
-            Dynamic::Sine => Sine.amp_at_phase(phase),
-            Dynamic::Saw => Saw.amp_at_phase(phase),
-            Dynamic::Square => Square.amp_at_phase(phase),
-            Dynamic::Noise => Noise.amp_at_phase(phase),
-            // Dynamic::NoiseWalk => NoiseWalk.amp_at_phase(phase),
-            Dynamic::SawExp(steepness) => SawExp(steepness).amp_at_phase(phase),
-        }
-    }
-}
 
 impl Waveform for Sine {
     #[inline]
@@ -113,16 +76,3 @@ impl Waveform for Noise {
         ::rand::random::<f32>() * 2.0 - 1.0
     }
 }
-
-// impl Waveform for NoiseWalk {
-//     #[inline]
-//     fn amp_at_phase(&self, phase: f64) -> f32 {
-//         ::utils::noise_walk(phase as f32)
-//     }
-//     #[inline]
-//     fn process_hz(&self, hz: f64) -> f64 {
-//         use pitch;
-//         let perc = pitch::Hz(hz as f32).perc();
-//         pitch::ScaledPerc(perc, 0.6).hz() as f64
-//     }
-// }
