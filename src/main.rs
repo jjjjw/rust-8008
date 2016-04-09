@@ -10,6 +10,7 @@ mod waveforms;
 use dsp::{sample, Graph, Node, Settings};
 use portaudio as pa;
 use waveforms::{Waveform};
+use std::f32::consts::PI;
 
 /// SoundStream is currently generic over i8, i32 and f32. Feel free to change it!
 type Output = f32;
@@ -17,6 +18,7 @@ type Output = f32;
 type Phase = f64;
 type Frequency = f64;
 type Volume = f32;
+type Cutoff = f32;
 
 const CHANNELS: i32 = 2;
 const FRAMES: u32 = 64;
@@ -36,8 +38,10 @@ fn run() -> Result<(), pa::Error> {
     // Construct our fancy Synth and add it to the graph!
     let synth = graph.add_node(DspNode::Synth);
 
-    // Connect a few oscillators to the synth.
-    graph.add_input(DspNode::Oscillator(0.0, A3_HZ), synth);
+    // Connect a filter before output
+    let filter = graph.add_input(DspNode::LPFilter(8000f32), synth);
+    // Connect an Oscillator to generate sound
+    graph.add_input(DspNode::Oscillator(0.0, A3_HZ), filter);
     // graph.add_input(DspNode::Oscillator(0.0, D5_HZ, 0.1), synth);
     // graph.add_input(DspNode::Oscillator(0.0, F5_HZ, 0.15), synth);
 
@@ -88,6 +92,7 @@ enum DspNode {
     /// Oscillator will be our generator type of node, meaning that we will override
     /// the way it provides audio via its `audio_requested` method.
     Oscillator(Phase, Frequency),
+    LPFilter(Cutoff)
 }
 
 impl Node<Output> for DspNode {
@@ -104,6 +109,21 @@ impl Node<Output> for DspNode {
                     *phase += frequency / settings.sample_hz as f64;
                 }
             },
+            DspNode::LPFilter(cutoff) => {
+                for frame in buffer.chunks_mut(settings.channels as usize) {
+                    for (i,channel) in frame.iter_mut().enumerate() {
+                        // Calculate
+                        let K = (PI * cutoff / (settings.sample_hz as f32)).tan();
+                        let alpha = ((K-1.0) / (K+1.0), 0.0);
+                        let y1 = alpha*channel + self.x_last[i] - alpha*self.y1_last[i];
+                        let y = (channel+y1)/2.0;
+                        *channel = y;
+                        // Store our results
+                        // self.x_last[i] = *channel;
+                        // self.y1_last[i] = y1;
+                    }
+                }
+            }
         }
     }
 }
