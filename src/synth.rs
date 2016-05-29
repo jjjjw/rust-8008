@@ -36,15 +36,10 @@ impl Oscillator {
 impl Synth {
     pub fn new(oscillator: Oscillator, frequency: Frequency, volume: Amp) -> Synth {
         Synth {
-            oscillator: oscillator, // TODO: multiple voices
+            oscillator: oscillator, // TODO: multiple oscillator
             frequency: frequency,  // TODO: dynamic frequency
             volume: volume  // TODO: dynamic volume
         }
-    }
-
-
-    fn volume(&self, amp: Amp) -> Volume {
-        amp * self.volume
     }
 }
 
@@ -52,9 +47,9 @@ impl Node<Output> for Synth {
     /// Here we'll override the audio_requested method and generate a sound.
     fn audio_requested(&mut self, buffer: &mut [Output], settings: Settings) {
         for frame in buffer.chunks_mut(settings.channels as usize) {
-            let val = self.oscillator.amp_at_next_phase(self.frequency, settings);
+            let amp = self.oscillator.amp_at_next_phase(self.frequency, settings);
             for channel in frame.iter_mut() {
-                *channel = self.volume(val) as f32;
+                *channel = (amp * self.volume) as f32;
             }
         }
     }
