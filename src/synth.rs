@@ -1,41 +1,52 @@
-use dsp::{Node, Settings};
-use waveforms::{Waveform, Square};
+use dsp::{Sample, FromSample, Node, Settings};
+use waveforms::{Waveform, Sine};
 
 pub type Frequency = f64;
 pub type Phase = f64;
-pub type Output = f64;
+pub type Output = f32; // f64 not supported yet
+pub type Amp = f64;
+pub type Volume = f64;
 
 pub struct Oscillator {
   phase: Phase,
-  waveform: Square // TODO: any waveform
+  waveform: Sine // TODO: any waveform
 }
 
 pub struct Synth {
   oscillator: Oscillator,
-  frequency: Frequency
+  frequency: Frequency,
+  volume: Amp,
 }
 
 impl Oscillator {
-    pub fn new(waveform: Square) -> Oscillator {
+    pub fn new(waveform: Sine) -> Oscillator {
         Oscillator {
             phase: 0.0,
             waveform: waveform
         }
     }
 
-    pub fn amp_at_next_phase(&mut self, frequency: Frequency, settings: Settings) {
+    pub fn amp_at_next_phase(&mut self, frequency: Frequency, settings: Settings) -> Amp {
         let val = self.waveform.amp_at_phase(self.phase);
-        self.phase = self.phase += frequency / settings.sample_hz as f64;
+        self.phase += frequency / settings.sample_hz as f64;
         val
     }
 }
 
 impl Synth {
-    pub fn new(oscillator: Oscillator, frequency: Frequency) -> Synth {
+    pub fn new(oscillator: Oscillator, frequency: Frequency, volume: Amp) -> Synth {
         Synth {
             oscillator: oscillator, // TODO: multiple voices
-            frequency: frequency  // TODO: dynamic frequency
+            frequency: frequency,  // TODO: dynamic frequency
+            volume: volume  // TODO: dynamic volume
         }
+    }
+
+
+    fn volume<S: Sample>(&self, amp: Amp) -> S
+        where S: Sample + FromSample<f64>,
+    {
+        (amp * self.volume).to_sample::<S>()
     }
 }
 
@@ -45,12 +56,12 @@ impl Node<Output> for Synth {
         for frame in buffer.chunks_mut(settings.channels as usize) {
             let val = self.oscillator.amp_at_next_phase(self.frequency, settings);
             for channel in frame.iter_mut() {
-                *channel = val;
+                *channel = self.volume(val);
             }
         }
     }
 }
 
-pub fn SquareSynth (frequency: Frequency) -> Synth {
-    Synth::new(Oscillator::new(Square), frequency)
+pub fn sine_synth (frequency: Frequency) -> Synth {
+    Synth::new(Oscillator::new(Sine), frequency, 0.15)
 }

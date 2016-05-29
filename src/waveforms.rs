@@ -1,22 +1,14 @@
-//!
-//! The Waveform trait along with various Waveform Types and there implementations.
-//!
-
 /// Some type that can return an amplitude given some phase.
 pub trait Waveform {
     /// Return the amplitude given some phase.
-    fn amp_at_phase(&self, phase: f64) -> f32;
-    /// An optional method for processing the frequency.
-    #[inline]
-    fn process_hz(&self, hz: f64) -> f64 { hz }
+    fn amp_at_phase(&self, phase: f64) -> f64;
 }
-
 
 /// Twice PI.
 const PI_2: f64 = ::std::f64::consts::PI * 2.0;
 
 /// Represents the "steepness" of the exponential saw wave.
-pub type Steepness = f32;
+pub type Steepness = f64;
 
 /// A sine wave.
 #[derive(Copy, Clone, Debug)]
@@ -38,24 +30,20 @@ pub struct Square;
 #[derive(Copy, Clone, Debug)]
 pub struct Noise;
 
-
 impl Waveform for Sine {
-    #[inline]
-    fn amp_at_phase(&self, phase: f64) -> f32 {
-        (PI_2 * phase).sin() as f32
+    fn amp_at_phase(&self, phase: f64) -> f64 {
+        (PI_2 * phase).sin() as f64
     }
 }
 
 impl Waveform for Saw {
-    #[inline]
-    fn amp_at_phase(&self, phase: f64) -> f32 {
-        (::utils::fmod(phase, 1.0) * -2.0 + 1.0) as f32
+    fn amp_at_phase(&self, phase: f64) -> f64 {
+        (::utils::fmod(phase, 1.0) * -2.0 + 1.0) as f64
     }
 }
 
 impl Waveform for SawExp {
-    #[inline]
-    fn amp_at_phase(&self, phase: f64) -> f32 {
+    fn amp_at_phase(&self, phase: f64) -> f64 {
         let SawExp(steepness) = *self;
         let saw = Saw.amp_at_phase(phase);
         saw * saw.abs().powf(steepness)
@@ -63,29 +51,14 @@ impl Waveform for SawExp {
 }
 
 impl Waveform for Square {
-    #[inline]
-    fn amp_at_phase(&self, phase: f64) -> f32 {
-        (if ::utils::fmod(phase, 1.0) < 0.5 { -1.0 } else { 1.0 }) as f32
-        //(if (PI_2 * phase).sin() < 0.0 { -1.0 } else { 1.0 }) as f32
+    fn amp_at_phase(&self, phase: f64) -> f64 {
+        (if ::utils::fmod(phase, 1.0) < 0.5 { -1.0 } else { 1.0 }) as f64
+        //(if (PI_2 * phase).sin() < 0.0 { -1.0 } else { 1.0 }) as f64
     }
 }
 
 impl Waveform for Noise {
-    #[inline]
-    fn amp_at_phase(&self, _phase: f64) -> f32 {
-        ::rand::random::<f32>() * 2.0 - 1.0
+    fn amp_at_phase(&self, _phase: f64) -> f64 {
+        ::rand::random::<f64>() * 2.0 - 1.0
     }
-}
-
-pub enum Dynamic {
-    /// Sine Wave
-    Sine,
-    /// Saw Wave
-    Saw,
-    /// Square Wave
-    Square,
-    /// Noise
-    Noise,
-    /// Exponential Saw Wave.
-    SawExp(Steepness),
 }
