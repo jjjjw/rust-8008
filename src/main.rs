@@ -5,12 +5,14 @@ extern crate dsp;
 extern crate portaudio;
 extern crate rand;
 extern crate utils;
+extern crate num;
 mod waveforms;
 mod synth;
+mod filters;
 
 use dsp::{sample, Node, Graph, Settings};
 use portaudio as pa;
-use synth::{sine_synth, Frequency};
+use synth::{square_synth, Frequency};
 
 /// SoundStream is currently generic over i8, i32 and f32. Feel free to change it!
 const CHANNELS: i32 = 2;
@@ -29,7 +31,7 @@ fn run() -> Result<(), pa::Error> {
     let mut graph = Graph::new();
 
     // Construct our fancy Synth and add it to the graph!
-    let synth = graph.add_node(sine_synth(A3_HZ));
+    let synth = graph.add_node(square_synth(A3_HZ));
 
     // Set the synth as the master node for the graph.
     graph.set_master(Some(synth));

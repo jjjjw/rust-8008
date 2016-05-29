@@ -1,5 +1,6 @@
 use dsp::{Node, Settings};
 use waveforms::{Waveform, amp_at_phase, Phase, Amp};
+use filters::{FilterMode, Filter};
 
 pub type Frequency = f64;
 pub type Output = f32; // f64 not supported yet
@@ -11,9 +12,10 @@ pub struct Oscillator {
 }
 
 pub struct Synth {
-  frequency: Frequency,
-  volume: Amp,
-  oscillator: Oscillator,
+    frequency: Frequency,
+    volume: Amp,
+    oscillator: Oscillator,
+    filter: Filter,
 }
 
 impl Oscillator {
@@ -32,9 +34,10 @@ impl Oscillator {
 }
 
 impl Synth {
-    pub fn new(oscillator: Oscillator, frequency: Frequency, volume: Amp) -> Synth {
+    pub fn new(oscillator: Oscillator, filter: Filter, frequency: Frequency, volume: Amp) -> Synth {
         Synth {
-            oscillator: oscillator, // TODO: multiple.dynamic oscillators
+            oscillator: oscillator, // TODO: multiple/dynamic oscillators
+            filter: filter, // TODO: multiple/dynamic filters
             frequency: frequency,  // TODO: dynamic frequency
             volume: volume  // TODO: dynamic volume
         }
@@ -45,14 +48,18 @@ impl Node<Output> for Synth {
     /// Here we'll override the audio_requested method and generate a sound.
     fn audio_requested(&mut self, buffer: &mut [Output], settings: Settings) {
         for frame in buffer.chunks_mut(settings.channels as usize) {
-            let amp = self.oscillator.tick(self.frequency, settings);
+            let mut amp = self.oscillator.tick(self.frequency, settings);
+            amp = self.filter.tick(amp, settings);
+            amp *= self.volume;
             for channel in frame.iter_mut() {
-                *channel = (amp * self.volume) as f32;
+                *channel = amp as f32;
             }
         }
     }
 }
 
-pub fn sine_synth (frequency: Frequency) -> Synth {
-    Synth::new(Oscillator::new(Waveform::Square), frequency, 0.15)
+pub fn square_synth (frequency: Frequency) -> Synth {
+    let oscillator = Oscillator::new(Waveform::Square);
+    let filter = Filter::new(FilterMode::LowPass(800f64));
+    Synth::new(oscillator, filter, frequency, 0.15)
 }
