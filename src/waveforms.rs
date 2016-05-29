@@ -76,3 +76,16 @@ impl Waveform for Noise {
         ::rand::random::<f32>() * 2.0 - 1.0
     }
 }
+
+pub enum Dynamic {
+    /// Sine Wave
+    Sine,
+    /// Saw Wave
+    Saw,
+    /// Square Wave
+    Square,
+    /// Noise
+    Noise,
+    /// Exponential Saw Wave.
+    SawExp(Steepness),
+}
