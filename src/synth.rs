@@ -1,4 +1,4 @@
-use dsp::{Sample, FromSample, Node, Settings};
+use dsp::{Node, Settings};
 use waveforms::{Waveform, Sine};
 
 pub type Frequency = f64;
@@ -43,10 +43,8 @@ impl Synth {
     }
 
 
-    fn volume<S: Sample>(&self, amp: Amp) -> S
-        where S: Sample + FromSample<f64>,
-    {
-        (amp * self.volume).to_sample::<S>()
+    fn volume(&self, amp: Amp) -> Volume {
+        amp * self.volume
     }
 }
 
@@ -56,7 +54,7 @@ impl Node<Output> for Synth {
         for frame in buffer.chunks_mut(settings.channels as usize) {
             let val = self.oscillator.amp_at_next_phase(self.frequency, settings);
             for channel in frame.iter_mut() {
-                *channel = self.volume(val);
+                *channel = self.volume(val) as f32;
             }
         }
     }
