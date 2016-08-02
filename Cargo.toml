@@ -1,7 +1,7 @@
 [package]
 
 name = "8008"
-description = "A simple sound machine."
+description = "A simple drum machine."
 version = "0.0.0"
 authors = ["jj <jj.weber@gmail.com>"]
 readme = "README.md"
@@ -12,8 +12,5 @@ homepage = "https://github.com/zjjw/rust-8008"
 
 
 [dependencies]
-dsp-chain = "0.12.0"
-mindtree_utils = "0.3.0"
-rand = "0.3.14"
-portaudio = "0.6.3"
-num = "0.1.30"
+clippy = "*"
+instrument = "0.2.0"
