@@ -13,4 +13,4 @@ homepage = "https://github.com/zjjw/rust-8008"
 
 [dependencies]
 clippy = "*"
-instrument = "0.2.0"
+sample = "*"
