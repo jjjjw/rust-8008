@@ -1,7 +1,7 @@
 #![feature(plugin)]
 #![plugin(clippy)]
 
-extern crate sample;
+extern crate dsp;
 mod drum_machine;
 
 /// Not doing anything yet, just getting started

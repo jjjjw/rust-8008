@@ -1,30 +1,17 @@
-use sample::Frame;
-use sample::frame::Stereo;
+use dsp::sample::frame::Stereo;
+use dsp::sample::Frame;
+use dsp::{Graph, Node};
 
-pub type Velocity = f32;
 pub type PadNum = usize;
-pub type SampleHz = f64;
+pub type Velocity = f32;
+pub type Hz = f64;
 
-pub type AudioOut = Stereo<f32>;
+pub type Output = Stereo<f32>;
 
-/// A single drum pad that can be triggered with a velocity
-struct Pad {
-    /// Is the pad active
-    is_active: bool,
-    /// The current velocity
-    vel: Velocity,
-}
+struct EmptyNode;
 
-/// Create a new vector of pads
-fn init_pads(num_pads: PadNum) -> Vec<Pad> {
-    (0..num_pads)
-        .map(|_| {
-            Pad {
-                is_active: false,
-                vel: 0.0,
-            }
-        })
-        .collect()
+impl Node<Output> for EmptyNode {
+    fn audio_requested(&mut self, buffer: &mut [Output], sample_hz: Hz) {}
 }
 
 pub struct Machine {
@@ -32,39 +19,31 @@ pub struct Machine {
     pub volume: f32,
     /// Render playback or not.
     pub is_paused: bool,
-    /// Number of triggerable pads.
-    pub num_pads: PadNum,
-    /// The pad states.
-    pads: Vec<Pad>,
+    /// The sample rate
+    pub sample_hz: Hz,
+    /// The audio dsp graph that generates audio.
+    graph: Graph<Output, EmptyNode>,
 }
 
 impl Machine {
     /// Constructor for a new drum machine.
     pub fn new() -> Self {
-        let num_pads: PadNum = 2;
+        let mut graph = Graph::new();
+        let root = graph.add_node(EmptyNode);
+
         Machine {
             volume: 1.0,
             is_paused: false,
-            num_pads: num_pads,
-            pads: init_pads(num_pads),
+            sample_hz: 44_100.0,
+            graph: graph,
         }
     }
 
     /// Trigger a pad.
-    pub fn pad_on<T>(&mut self, pad: PadNum, vel: Velocity) {
-        if pad < self.num_pads {
-            self.pads[pad].is_active = true;
-            self.pads[pad].vel = vel;
-        }
-    }
+    pub fn trigger<T>(&mut self, pad: PadNum, vel: Velocity) {}
 
     /// Deactivate a pad.
-    pub fn pad_off<T>(&mut self, pad: PadNum) {
-        if pad < self.num_pads {
-            self.pads[pad].is_active = false;
-            self.pads[pad].vel = 0.0;
-        }
-    }
+    pub fn silence<T>(&mut self, pad: PadNum) {}
 
     /// Pause playback.
     pub fn pause(&mut self) {
@@ -77,20 +56,17 @@ impl Machine {
     }
 
     /// Stop playback and clear the current pads.
-    pub fn stop(&mut self) {
-        for pad in &mut self.pads {
-            pad.is_active = false;
-            pad.vel = 0.0;
-        }
-    }
+    pub fn stop(&mut self) {}
 
-    /// Output a vector of audio frames
-    pub fn render(&mut self, sample_rate: SampleHz) -> Vec<AudioOut> {
+    /// Get from the graph at the sample rate.
+    fn audio_requested(&mut self) -> Vec<Output> {
+        let mut buffer = vec![Output::equilibrium()];
         if self.is_paused {
-            vec![AudioOut::equilibrium()]
+            buffer
         } else {
-            // TODO: render all active pads
-            vec![AudioOut::equilibrium()]
+            self.graph.audio_requested(&mut buffer, self.sample_hz);
+            // TODO: volume
+            buffer
         }
     }
 }
