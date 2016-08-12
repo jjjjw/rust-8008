@@ -7,6 +7,7 @@ mod drum_machine;
 
 /// Not doing anything yet, just getting started
 fn main() {
-    let machine = drum_machine::Machine::new();
+    let mut machine = drum_machine::Machine::new();
+    println!("{:?}", machine.next());
     println!("{:?}", machine.volume);
 }
