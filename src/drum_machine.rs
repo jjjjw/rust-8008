@@ -45,8 +45,8 @@ impl PadState {
     }
 
     /// Get the next audio frame.
-    fn next_frame(&mut self) -> Option<AudioOut> {
-        Some(AudioOut::equilibrium())
+    fn next_frame(&mut self) -> AudioOut {
+        AudioOut::equilibrium()
     }
 }
 
@@ -54,7 +54,7 @@ impl Iterator for PadState {
     type Item = AudioOut;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.next_frame()
+        Some(self.next_frame())
     }
 }
 
@@ -121,13 +121,9 @@ impl Machine {
     }
 
     /// Get the next audio frame.
-    fn next_frame(&mut self) -> Option<AudioOut> {
-        Some(self.pads.iter_mut().fold(AudioOut::equilibrium(), |f, pad| {
-            f.add_amp(match pad.next() {
-                None => AudioOut::equilibrium(),
-                Some(output) => output,
-            })
-        }))
+    fn next_frame(&mut self) -> AudioOut {
+        self.pads.iter_mut().fold(AudioOut::equilibrium(),
+                                  |f, pad| f.add_amp(pad.next_frame()))
     }
 }
 
@@ -135,7 +131,7 @@ impl Iterator for Machine {
     type Item = AudioOut;
 
     fn next(&mut self) -> Option<Self::Item> {
-        self.next_frame()
+        Some(self.next_frame())
     }
 }
 
