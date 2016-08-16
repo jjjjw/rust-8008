@@ -1,13 +1,15 @@
 use dsp::Node;
-use dsp::sample::frame::Stereo;
+use dsp::sample::frame::Mono;
 use dsp::sample::signal;
-use dsp::sample::{Frame, Signal, slice};
+use dsp::sample::signal::{Sine, ConstHz};
+use dsp::sample::{Frame, slice};
+use std::f64;
 
-pub type Hz = u64;
+pub type Hz = f64;
 pub type PadIdx = usize;
-pub type Velocity = u64;
-pub type Volume = u64;
-pub type AudioOut = Stereo<f64>;
+pub type Velocity = f64;
+pub type Volume = f64;
+pub type AudioOut = Mono<f64>;
 
 struct PadState {
     /// Is the pad active.
@@ -16,14 +18,17 @@ struct PadState {
     vel: Velocity,
     /// The current sample rate
     sample_hz: Hz,
+    /// A sine wave
+    sine: Sine<ConstHz>,
 }
 
 impl PadState {
     fn new(sample_hz: Hz) -> Self {
         PadState {
             active: false,
-            vel: 0,
+            vel: 0.0,
             sample_hz: sample_hz,
+            sine: signal::rate(sample_hz).const_hz(32.70).sine(),
         }
     }
 
@@ -36,17 +41,25 @@ impl PadState {
     /// Deactivate.
     fn silence(&mut self) {
         self.active = false;
-        self.vel = 0;
+        self.vel = 0.0;
     }
 
     /// Set the sample rate
     fn set_sample_rate(&mut self, sample_hz: Hz) {
         self.sample_hz = sample_hz;
+        self.sine = signal::rate(sample_hz).const_hz(32.70).sine()
     }
 
     /// Get the next audio frame.
     fn next_frame(&mut self) -> AudioOut {
-        AudioOut::equilibrium()
+        if !self.active {
+            AudioOut::equilibrium()
+        } else {
+            match self.sine.next() {
+                None => AudioOut::equilibrium(),
+                Some(output) => output,
+            }
+        }
     }
 }
 
@@ -72,26 +85,26 @@ pub struct Machine {
 impl Machine {
     /// Constructor for a new drum machine.
     pub fn new() -> Self {
-        const sample_hz: Hz = 44_100;
+        const SAMPLE_HZ: Hz = 44_100.0;
         Machine {
-            volume: 1,
+            volume: 1.0,
             is_paused: false,
-            pads: vec![PadState::new(sample_hz)],
-            sample_hz: sample_hz,
+            pads: vec![PadState::new(SAMPLE_HZ)],
+            sample_hz: SAMPLE_HZ,
         }
     }
 
     /// Trigger a pad.
     pub fn trigger(&mut self, pad: PadIdx, vel: Velocity) {
-        if pad < self.pads.len() {
-            self.pads[pad].trigger(vel);
+        if pad <= self.pads.len() {
+            self.pads[pad - 1].trigger(vel);
         }
     }
 
     /// Deactivate a pad.
     pub fn silence(&mut self, pad: PadIdx) {
-        if pad < self.pads.len() {
-            self.pads[pad].silence();
+        if pad <= self.pads.len() {
+            self.pads[pad - 1].silence();
         }
     }
 
@@ -137,9 +150,9 @@ impl Iterator for Machine {
 
 impl Node<AudioOut> for Machine {
     fn audio_requested(&mut self, buffer: &mut [AudioOut], sample_hz: f64) {
-        let sample_hz_rounded = sample_hz.round() as u64;
-        if sample_hz_rounded != self.sample_hz {
-            self.set_sample_rate(sample_hz_rounded);
+        let abs_difference = (sample_hz.round() - self.sample_hz.round()).abs();
+        if abs_difference > f64::EPSILON {
+            self.set_sample_rate(sample_hz);
         }
 
         slice::map_in_place(buffer, |_| match self.next() {
