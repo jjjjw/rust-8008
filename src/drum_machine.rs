@@ -3,9 +3,11 @@ use dsp::sample::frame::Mono;
 use dsp::sample::signal;
 use dsp::sample::signal::{Sine, ConstHz};
 use dsp::sample::{Frame, slice};
+use envelope::{Envelope, Point};
+use envelope_lib::Envelope as Trait;
+use time_calc::{SampleHz, Ms, Samples};
 use std::f64;
 
-pub type Hz = f64;
 pub type PadIdx = usize;
 pub type Velocity = f64;
 pub type Volume = f64;
@@ -14,21 +16,33 @@ pub type AudioOut = Mono<f64>;
 struct PadState {
     /// Is the pad active.
     active: bool,
+    /// The time that the pad has been active.
+    active_time: Ms,
     /// The velocity this pad was triggered with.
     vel: Velocity,
-    /// The current sample rate
-    sample_hz: Hz,
-    /// A sine wave
-    sine: Sine<ConstHz>,
+    /// The duration of the active state.
+    duration: Ms,
+    /// The amplitude envelope of this pad.
+    amp_env: Envelope,
 }
 
 impl PadState {
-    fn new(sample_hz: Hz) -> Self {
+    fn new() -> Self {
+        let amp_env = Envelope::from(vec!(
+            //         Time ,  Amp ,  Curve
+            Point::new(0.0  ,  0.1 ,  0.0),
+            Point::new(0.01 ,  1.0 ,  0.0),
+            Point::new(0.25 ,  0.8 ,  0.0),
+            Point::new(0.75 ,  0.2 ,  0.0),
+            Point::new(1.0  ,  0.0 ,  0.0),
+        ));
+
         PadState {
             active: false,
+            active_time: Ms(0.0),
             vel: 0.0,
-            sample_hz: sample_hz,
-            sine: signal::rate(sample_hz).const_hz(32.70).sine(),
+            duration: Ms(1_000.0),
+            amp_env: amp_env,
         }
     }
 
@@ -41,33 +55,32 @@ impl PadState {
     /// Deactivate.
     fn silence(&mut self) {
         self.active = false;
+        self.active_time = Ms(0.0);
         self.vel = 0.0;
     }
 
-    /// Set the sample rate
-    fn set_sample_rate(&mut self, sample_hz: Hz) {
-        self.sample_hz = sample_hz;
-        self.sine = signal::rate(sample_hz).const_hz(32.70).sine()
+    /// Get the next amplitude multiplier
+    fn next_amp(&mut self, sample_hz: SampleHz) -> f64 {
+        // Step forward by the sample rate
+        self.active_time = self.active_time + Samples(1).to_ms(sample_hz);
+        let perc = self.active_time.ms() / self.duration.ms();
+
+        if perc > 1.0 {
+            self.silence();
+            0.0
+        } else {
+            self.amp_env.y(perc).unwrap()
+        }
     }
 
     /// Get the next audio frame.
-    fn next_frame(&mut self) -> AudioOut {
+    fn next_frame(&mut self, sample_hz: SampleHz) -> AudioOut {
         if !self.active {
             AudioOut::equilibrium()
         } else {
-            match self.sine.next() {
-                None => AudioOut::equilibrium(),
-                Some(output) => output,
-            }
+            // TODO: sound generator
+            [1.0 * self.next_amp(sample_hz)]
         }
-    }
-}
-
-impl Iterator for PadState {
-    type Item = AudioOut;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.next_frame())
     }
 }
 
@@ -76,21 +89,17 @@ pub struct Machine {
     pub volume: Volume,
     /// Render playback or not.
     pub is_paused: bool,
-    /// The current sample rate
-    sample_hz: Hz,
     /// The states of the pads that generate sound for the machine.
     pads: Vec<PadState>,
 }
 
 impl Machine {
     /// Constructor for a new drum machine.
-    pub fn new() -> Self {
-        const SAMPLE_HZ: Hz = 44_100.0;
+    pub fn new() -> Self {;
         Machine {
             volume: 1.0,
             is_paused: false,
-            pads: vec![PadState::new(SAMPLE_HZ)],
-            sample_hz: SAMPLE_HZ,
+            pads: vec![PadState::new()],
         }
     }
 
@@ -125,39 +134,19 @@ impl Machine {
         }
     }
 
-    /// Set the sample rate
-    pub fn set_sample_rate(&mut self, sample_hz: Hz) {
-        self.sample_hz = sample_hz;
-        for pad in &mut self.pads {
-            pad.set_sample_rate(sample_hz);
-        }
-    }
-
     /// Get the next audio frame.
-    fn next_frame(&mut self) -> AudioOut {
-        self.pads.iter_mut().fold(AudioOut::equilibrium(),
-                                  |f, pad| f.add_amp(pad.next_frame()))
-    }
-}
-
-impl Iterator for Machine {
-    type Item = AudioOut;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        Some(self.next_frame())
+    pub fn next_frame(&mut self, sample_hz: SampleHz) -> AudioOut {
+        if self.is_paused {
+            AudioOut::equilibrium()
+        } else {
+            self.pads.iter_mut().fold(AudioOut::equilibrium(),
+                                      |f, pad| f.add_amp(pad.next_frame(sample_hz)))
+        }
     }
 }
 
 impl Node<AudioOut> for Machine {
-    fn audio_requested(&mut self, buffer: &mut [AudioOut], sample_hz: f64) {
-        let abs_difference = (sample_hz.round() - self.sample_hz.round()).abs();
-        if abs_difference > f64::EPSILON {
-            self.set_sample_rate(sample_hz);
-        }
-
-        slice::map_in_place(buffer, |_| match self.next() {
-            None => AudioOut::equilibrium(),
-            Some(output) => output,
-        });
+    fn audio_requested(&mut self, buffer: &mut [AudioOut], sample_hz: SampleHz) {
+        slice::map_in_place(buffer, |_| self.next_frame(sample_hz));
     }
 }
