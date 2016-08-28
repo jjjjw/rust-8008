@@ -1,7 +1,5 @@
 use dsp::Node;
 use dsp::sample::frame::Mono;
-use dsp::sample::signal;
-use dsp::sample::signal::{Sine, ConstHz};
 use dsp::sample::{Frame, slice};
 use envelope::{Envelope, Point};
 use envelope_lib::Envelope as Trait;
@@ -79,7 +77,7 @@ impl PadState {
             AudioOut::equilibrium()
         } else {
             // TODO: sound generator
-            [1.0 * self.next_amp(sample_hz)]
+            [1.0 * self.vel * self.next_amp(sample_hz)]
         }
     }
 }
@@ -139,8 +137,11 @@ impl Machine {
         if self.is_paused {
             AudioOut::equilibrium()
         } else {
-            self.pads.iter_mut().fold(AudioOut::equilibrium(),
-                                      |f, pad| f.add_amp(pad.next_frame(sample_hz)))
+            self.pads
+                .iter_mut()
+                .fold(AudioOut::equilibrium(),
+                      |f, pad| f.add_amp(pad.next_frame(sample_hz)))
+                .scale_amp(self.volume)
         }
     }
 }
