@@ -18,13 +18,29 @@ struct PadState {
     active_time: Ms,
     /// The velocity this pad was triggered with.
     vel: Velocity,
-    /// The duration of the active state.
-    duration: Ms,
-    /// The amplitude envelope of this pad.
-    amp_env: Envelope,
+    /// The sound generator for this pad.
+    gen: Generator,
 }
 
-impl PadState {
+/// Return the sine wave at the phase (TODO: waveforms module)
+const PI_2: f64 = ::std::f64::consts::PI * 2.0;
+fn sine(phase: f64) -> f64 {
+    (PI_2 * phase).sin()
+}
+
+/// An audio generator
+struct Generator {
+    /// The duration of the audio.
+    duration: Ms,
+    /// The amplitude envelope of this sound.
+    amp_env: Envelope,
+    /// Oscillator state (TODO: OscState struct)
+    phase: f64,
+    /// Oscillator state (TODO: OscState struct)
+    frequency: f64,
+}
+
+impl Generator {
     fn new() -> Self {
         let amp_env = Envelope::from(vec!(
             //         Time ,  Amp ,  Curve
@@ -35,12 +51,43 @@ impl PadState {
             Point::new(1.0  ,  0.0 ,  0.0),
         ));
 
+        Generator {
+            duration: Ms(1.0),
+            amp_env: amp_env,
+            phase: 0.0,
+            frequency: 32_700.0,
+        }
+    }
+
+    /// Get the next phase
+    fn next_phase(&mut self, sample_hz: SampleHz) -> f64 {
+        self.phase += self.frequency / sample_hz;
+        self.phase
+    }
+
+    /// Get the next amplitude multiplier
+    fn next_amp_mul(&mut self, active_time: Ms) -> Option<f64> {
+        let perc = active_time.ms() / self.duration.ms();
+        self.amp_env.y(perc)
+    }
+
+    /// Get the next amplitude
+    fn next_amp(&mut self, sample_hz: SampleHz, active_time: Ms) -> Option<f64> {
+        let mul = self.next_amp_mul(active_time);
+        match mul {
+            Some(val) => Some(sine(self.next_phase(sample_hz)) * val),
+            None => None,
+        }
+    }
+}
+
+impl PadState {
+    fn new() -> Self {
         PadState {
             active: false,
             active_time: Ms(0.0),
             vel: 0.0,
-            duration: Ms(1_000.0),
-            amp_env: amp_env,
+            gen: Generator::new(),
         }
     }
 
@@ -57,27 +104,21 @@ impl PadState {
         self.vel = 0.0;
     }
 
-    /// Get the next amplitude multiplier
-    fn next_amp(&mut self, sample_hz: SampleHz) -> f64 {
-        // Step forward by the sample rate
-        self.active_time = self.active_time + Samples(1).to_ms(sample_hz);
-        let perc = self.active_time.ms() / self.duration.ms();
-
-        if perc > 1.0 {
-            self.silence();
-            0.0
-        } else {
-            self.amp_env.y(perc).unwrap()
-        }
-    }
-
     /// Get the next audio frame.
     fn next_frame(&mut self, sample_hz: SampleHz) -> AudioOut {
         if !self.active {
             AudioOut::equilibrium()
         } else {
-            // TODO: sound generator
-            [1.0 * self.vel * self.next_amp(sample_hz)]
+            // Step forward by the sample rate
+            self.active_time = self.active_time + Samples(1).to_ms(sample_hz);
+            let next = self.gen.next_amp(sample_hz, self.active_time);
+            match next {
+                Some(val) => [val].scale_amp(self.vel),
+                None => {
+                    self.silence();
+                    AudioOut::equilibrium()
+                }
+            }
         }
     }
 }
