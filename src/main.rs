@@ -3,7 +3,7 @@
 extern crate dsp;
 extern crate envelope as envelope_lib;
 extern crate time_calc;
-extern crate pitch_calc;
+extern crate rand;
 mod drum_machine;
 mod envelope;
 

@@ -11,15 +11,16 @@ pub type Velocity = f64;
 pub type Volume = f64;
 pub type AudioOut = Mono<f64>;
 
-struct PadState {
+pub struct PadState {
     /// Is the pad active.
     active: bool,
     /// The time that the pad has been active.
     active_time: Ms,
     /// The velocity this pad was triggered with.
     vel: Velocity,
-    /// The sound generator for this pad.
-    gen: Generator,
+    /// The sound generator for this pad: TODO: this may need to be a graph of DSP nodes.
+    /// Maybe once again the drum machine is a dsp graph.
+    gen: Box<Generator>,
 }
 
 /// Return the sine wave at the phase (TODO: waveforms module)
@@ -28,19 +29,24 @@ fn sine(phase: f64) -> f64 {
     (PI_2 * phase).sin()
 }
 
+trait Generator {
+    fn next_amp(&mut self, sample_hz: SampleHz, active_time: Ms) -> Option<f64>;
+}
+
 /// An audio generator
-struct Generator {
+#[derive(Debug)]
+struct SineGenerator {
     /// The duration of the audio.
     duration: Ms,
     /// The amplitude envelope of this sound.
     amp_env: Envelope,
-    /// Oscillator state (TODO: OscState struct)
+    /// Oscillator state
     phase: f64,
-    /// Oscillator state (TODO: OscState struct)
+    /// Oscillator state
     frequency: f64,
 }
 
-impl Generator {
+impl SineGenerator {
     fn new() -> Self {
         let amp_env = Envelope::from(vec!(
             //         Time ,  Amp ,  Curve
@@ -51,7 +57,7 @@ impl Generator {
             Point::new(1.0  ,  0.0 ,  0.0),
         ));
 
-        Generator {
+        SineGenerator {
             duration: Ms(1.0),
             amp_env: amp_env,
             phase: 0.0,
@@ -70,7 +76,9 @@ impl Generator {
         let perc = active_time.ms() / self.duration.ms();
         self.amp_env.y(perc)
     }
+}
 
+impl Generator for SineGenerator {
     /// Get the next amplitude
     fn next_amp(&mut self, sample_hz: SampleHz, active_time: Ms) -> Option<f64> {
         let mul = self.next_amp_mul(active_time);
@@ -81,13 +89,56 @@ impl Generator {
     }
 }
 
-impl PadState {
+#[derive(Debug)]
+struct RandomGenerator {
+    /// The duration of the audio.
+    duration: Ms,
+    /// The amplitude envelope of this sound.
+    amp_env: Envelope,
+}
+
+impl RandomGenerator {
     fn new() -> Self {
+        let amp_env = Envelope::from(vec!(
+            //         Time ,  Amp ,  Curve
+            Point::new(0.0  ,  0.1 ,  0.0),
+            Point::new(0.01 ,  1.0 ,  0.0),
+            Point::new(0.25 ,  0.8 ,  0.0),
+            Point::new(0.75 ,  0.2 ,  0.0),
+            Point::new(1.0  ,  0.0 ,  0.0),
+        ));
+
+        RandomGenerator {
+            duration: Ms(1.0),
+            amp_env: amp_env,
+        }
+    }
+
+    /// Get the next amplitude multiplier
+    fn next_amp_mul(&mut self, active_time: Ms) -> Option<f64> {
+        let perc = active_time.ms() / self.duration.ms();
+        self.amp_env.y(perc)
+    }
+}
+
+impl Generator for RandomGenerator {
+    /// Get the next amplitude
+    fn next_amp(&mut self, sample_hz: SampleHz, active_time: Ms) -> Option<f64> {
+        let mul = self.next_amp_mul(active_time);
+        match mul {
+            Some(val) => Some(::rand::random::<f64>() * val),
+            None => None,
+        }
+    }
+}
+
+impl PadState {
+    fn new(gen: Box<Generator>) -> Self {
         PadState {
             active: false,
             active_time: Ms(0.0),
             vel: 0.0,
-            gen: Generator::new(),
+            gen: gen,
         }
     }
 
@@ -129,16 +180,16 @@ pub struct Machine {
     /// Render playback or not.
     pub is_paused: bool,
     /// The states of the pads that generate sound for the machine.
-    pads: Vec<PadState>,
+    pub pads: Vec<PadState>,
 }
 
 impl Machine {
-    /// Constructor for a new drum machine.
-    pub fn new() -> Self {;
+    pub fn new() -> Self {
         Machine {
             volume: 1.0,
             is_paused: false,
-            pads: vec![PadState::new()],
+            pads: vec![PadState::new(Box::new(SineGenerator::new())),
+                       PadState::new(Box::new(RandomGenerator::new()))],
         }
     }
 
